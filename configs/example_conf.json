@@ -1,0 +1,18 @@
+{
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/oscar_2301": 0.000001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_enron_emails":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_europarl":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_hackernews":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_nih_exporter":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_arxiv":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_ubuntu_irc":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_gutenberg":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_bookcorpus":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_wikipedia_en":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_uspto_backgrounds":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_pubmed_central":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_pubmed_abstracts":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_free_law":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_stackexchange":0.0001,
+    "/p/scratch/opengptx-elm/data/datasources_opgptx/docs/v0.1.4/en/the_pile/pile_books3":0.0001
+}
