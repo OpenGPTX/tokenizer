@@ -1,15 +1,12 @@
-
 from datasets import load_from_disk
-from sklearn.model_selection import train_test_split
 import json
-import zstandard as zstd
+import random
 import argparse
 
 
 def datasets_sampler(dataset_path, percentage, random_state=42):
     """
-    This function streams sampled texts from datasets from the pre-defined configurations.
-
+    This function returns sampled datasets from the pre-defined configurations.
     """
     #Read datasets (the try excpet is because: some of the data are not splitted into train/test (?), so this is a work around)
     try:
@@ -21,30 +18,62 @@ def datasets_sampler(dataset_path, percentage, random_state=42):
     num_samples = int(len(dataset)*percentage)
     dataset = dataset.shuffle(seed=random_state).select(range(num_samples))
 
-    #estimate the number of batches
-    num_batches = len(dataset) // batch_size
-
-    #iterate through texts of sampled datasets
-    for d in dataset:
-        try:
-            yield d['text']
-        except KeyError:
-            yield d['article']
+    #return the sampled dataset
+    return dataset
 
 
-def generator_all(config):
+
+def generator_all(config,random_state=42):
     """
-    This function behaves as a generator to stream text from data loaders for training.
-
-    The text is produced in a sequential manner.
+    This function behaves as a generator to stream text from the sampled data loaders for training.
+    The text is produced in a randomaized manner.
     """
-    #load all pile data loaders
-    all_dataloaders = [datasets_sampler(dataset_path, percentage) for dataset_path, percentage in config.items()]
+    #define a word counter
+    word_count = 0
+    
+    #define threshold word count 3.2 billion token (or words)
+    threshold_word_count = 3e9 + 2e8
+    
+    #load all the sampled data loaders
+    all_dataloaders = [iter(datasets_sampler(dataset_path, percentage)) for dataset_path, percentage in config.items()]
+    
+    #log the number of used words per datasets in total_num_words_per_dataset
+    total_num_words_per_dataset = {dataset_path: 0 for dataset_path in config.keys()}
+    
+    #start streaming text until the threshold_word_count is reached
+    while word_count <= threshold_word_count:
+        #in each iteration, select a random dataset to stream from 
+        random_idx = random.choice(range(len(all_dataloaders)))
+        
+        #stream from the datasets, considering that texts could exist under different column name (work around)
+        if 'text' in next(all_dataloaders[random_idx]).keys():
+            text = next(all_dataloaders[random_idx])['text']
+            
+        elif 'article' in next(all_dataloaders[random_idx]).keys():
+            text = next(all_dataloaders[random_idx])['article']
+        
+        elif 'content' in next(all_dataloaders[random_idx]).keys():
+            text = next(all_dataloaders[random_idx])['content']  
+              
+        #stream text
+        #TODO: How to handle dataloaders at stop iteration 
+        yield text 
+        
+        #change the dataloader in the next iteration
+        random_idx = random.choice(range(len(all_dataloaders)))
+        
+        #update word_count and total_num_words_per_dataset by the meassured word count from the streamed text in this iteration
+        measured_word_count = len(text.split(' '))
+        word_count += measured_word_count
+        total_num_words_per_dataset[list(config.keys())[random_idx]] += measured_word_count
+        #TODO: update logging the word count after 300 iteration 
+        print(f"total used number of words: {word_count}")
+        print(f"distribution of words per datasets: {total_num_words_per_dataset}")
+        
+    #when streaming is over, save the total_num_words_per_dataset as json    
+    with open('total_num_words_per_dataset.json','w') as j: 
+        json.dump(total_num_words_per_dataset,j)
 
-    #stream text
-    for each_dataloader in all_dataloaders:
-        for each_text in each_dataloader:
-            yield each_text
 
 
 if __name__ == "__main__":
@@ -54,9 +83,12 @@ if __name__ == "__main__":
 
     with open(args.input_conf,'r') as j:
         configs = json.load(j)
-
+    i = 0 
     for d in generator_all(configs):
         print("Next item: \n\n\n\n")
         print(d)
+
+        
+        
 
     print("Done")
