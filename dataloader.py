@@ -23,7 +23,7 @@ def datasets_sampler(dataset_path, percentage, random_state=42):
 
 
 
-def generator_all(config,random_state=42):
+def generator_all(config):
     """
     This function behaves as a generator to stream text from the sampled data loaders for training.
     The text is produced in a randomaized manner.
@@ -42,21 +42,35 @@ def generator_all(config,random_state=42):
     
     #start streaming text until the threshold_word_count is reached
     while word_count <= threshold_word_count:
+        #before starting iterating throug the datasets, make sure you have your datasets not fully consumed, otherwise end the iteration 
+        if len(all_dataloaders) == 0:
+            return 
+        #if we have datasets to iterate through, do the followings: 
         #in each iteration, select a random dataset to stream from 
         random_idx = random.choice(range(len(all_dataloaders)))
         
-        #stream from the datasets, considering that texts could exist under different column name (work around)
-        if 'text' in next(all_dataloaders[random_idx]).keys():
-            text = next(all_dataloaders[random_idx])['text']
+        #we try stream text from the randomly selected dataset, and if the dataset is fully consumed, it is removed from the dataset lists.
+        #The iteration ends when all datasets are removed. 
+        try:     
+            #stream from the datasets, considering that texts could exist under different column name (work around)
+            if 'text' in next(all_dataloaders[random_idx]).keys():
+                text = next(all_dataloaders[random_idx])['text']
+                
+            elif 'article' in next(all_dataloaders[random_idx]).keys():
+                text = next(all_dataloaders[random_idx])['article']
             
-        elif 'article' in next(all_dataloaders[random_idx]).keys():
-            text = next(all_dataloaders[random_idx])['article']
-        
-        elif 'content' in next(all_dataloaders[random_idx]).keys():
-            text = next(all_dataloaders[random_idx])['content']  
+            elif 'content' in next(all_dataloaders[random_idx]).keys():
+                text = next(all_dataloaders[random_idx])['content']  
+        except: 
+            try: 
+                print(f"this dataset {list(config.keys())[random_idx]} is fully consumed")
+                all_dataloaders.remove(all_dataloaders[random_idx])
+                print(len(all_dataloaders))
+                continue
+            except IndexError:
+                return 
               
         #stream text
-        #TODO: How to handle dataloaders at stop iteration 
         yield text 
         
         #change the dataloader in the next iteration
@@ -66,9 +80,11 @@ def generator_all(config,random_state=42):
         measured_word_count = len(text.split(' '))
         word_count += measured_word_count
         total_num_words_per_dataset[list(config.keys())[random_idx]] += measured_word_count
-        #TODO: update logging the word count after 300 iteration 
-        print(f"total used number of words: {word_count}")
-        print(f"distribution of words per datasets: {total_num_words_per_dataset}")
+        
+        #update logging the word count after 10000 iteration 
+        if word_count%10000 == 0:
+            print(f"total used number of words: {word_count}")
+            print(f"distribution of words per datasets: {total_num_words_per_dataset}")
         
     #when streaming is over, save the total_num_words_per_dataset as json    
     with open('total_num_words_per_dataset.json','w') as j: 
@@ -83,7 +99,7 @@ if __name__ == "__main__":
 
     with open(args.input_conf,'r') as j:
         configs = json.load(j)
-    i = 0 
+        
     for d in generator_all(configs):
         print("Next item: \n\n\n\n")
         print(d)
