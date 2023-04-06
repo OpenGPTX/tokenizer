@@ -3,6 +3,8 @@ import json
 import random
 import argparse
 
+# Set the random seed
+random.seed(42)
 
 def datasets_sampler(dataset_path, percentage, random_state=42):
     """
@@ -103,6 +105,7 @@ if __name__ == "__main__":
     for d in generator_all(configs):
         print("Next item: \n\n\n\n")
         print(d)
+        break
 
         
         
