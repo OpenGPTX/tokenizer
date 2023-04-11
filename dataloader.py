@@ -2,9 +2,12 @@ from datasets import load_from_disk
 import json
 import random
 import argparse
+import re
 
 # Set the random seed
 random.seed(42)
+#Set the regex tokenizer
+word_pattern = re.compile(r'\w+')
 
 def datasets_sampler(dataset_path, percentage, random_state=42):
     """
@@ -33,8 +36,8 @@ def generator_all(config):
     #define a word counter
     word_count = 0
     
-    #define threshold word count 3.2 billion token (or words)
-    threshold_word_count = 3e9 + 2e8
+    #define threshold word count 3.27 billion token (or words)
+    threshold_word_count = 3e9 + 2e8 + 7e7
     
     #load all the sampled data loaders
     all_dataloaders = [iter(datasets_sampler(dataset_path, percentage)) for dataset_path, percentage in config.items()]
@@ -42,14 +45,20 @@ def generator_all(config):
     #log the number of used words per datasets in total_num_words_per_dataset
     total_num_words_per_dataset = {dataset_path: 0 for dataset_path in config.keys()}
     
+    #use the indices of the dataloaders for random reading
+    dataloader_indicies = list(range(len(all_dataloaders)))
     #start streaming text until the threshold_word_count is reached
     while word_count <= threshold_word_count:
         #before starting iterating throug the datasets, make sure you have your datasets not fully consumed, otherwise end the iteration 
         if len(all_dataloaders) == 0:
-            return 
+            break 
         #if we have datasets to iterate through, do the followings: 
         #in each iteration, select a random dataset to stream from 
-        random_idx = random.choice(range(len(all_dataloaders)))
+        try: 
+            random_idx = random.choice(dataloader_indicies)
+        except IndexError:
+            print("All Datasets are successfully consumed")
+            break 
         
         #we try stream text from the randomly selected dataset, and if the dataset is fully consumed, it is removed from the dataset lists.
         #The iteration ends when all datasets are removed. 
@@ -62,31 +71,28 @@ def generator_all(config):
                 text = next(all_dataloaders[random_idx])['article']
             
             elif 'content' in next(all_dataloaders[random_idx]).keys():
-                text = next(all_dataloaders[random_idx])['content']  
+                text = next(all_dataloaders[random_idx])['content'] 
+                
+            #update word_count and total_num_words_per_dataset by the meassured word count from the streamed text in this iteration
+            measured_word_count = len(word_pattern.findall(text))
+            word_count += measured_word_count
+            total_num_words_per_dataset[list(config.keys())[random_idx]] += measured_word_count 
         except: 
             try: 
                 print(f"this dataset {list(config.keys())[random_idx]} is fully consumed")
-                all_dataloaders.remove(all_dataloaders[random_idx])
-                print(len(all_dataloaders))
+                dataloader_indicies.remove(random_idx)
                 continue
+            #if no index to be removed, it means that all datasets are consumed 
             except IndexError:
-                return 
-              
-        #stream text
-        yield text 
-        
-        #change the dataloader in the next iteration
-        random_idx = random.choice(range(len(all_dataloaders)))
-        
-        #update word_count and total_num_words_per_dataset by the meassured word count from the streamed text in this iteration
-        measured_word_count = len(text.split(' '))
-        word_count += measured_word_count
-        total_num_words_per_dataset[list(config.keys())[random_idx]] += measured_word_count
+                break  
         
         #update logging the word count after 10000 iteration 
         if word_count%10000 == 0:
             print(f"total used number of words: {word_count}")
             print(f"distribution of words per datasets: {total_num_words_per_dataset}")
+            
+        #stream text
+        yield text 
         
     #when streaming is over, save the total_num_words_per_dataset as json    
     with open('total_num_words_per_dataset.json','w') as j: 
@@ -105,7 +111,7 @@ if __name__ == "__main__":
     for d in generator_all(configs):
         print("Next item: \n\n\n\n")
         print(d)
-        break
+        # break
 
         
         
