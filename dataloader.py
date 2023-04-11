@@ -1,15 +1,17 @@
-
 from datasets import load_from_disk
-from sklearn.model_selection import train_test_split
 import json
-import zstandard as zstd
+import random
 import argparse
+import re
 
+# Set the random seed
+random.seed(42)
+#Set the regex tokenizer
+word_pattern = re.compile(r'\w+')
 
 def datasets_sampler(dataset_path, percentage, random_state=42):
     """
-    This function streams sampled texts from datasets from the pre-defined configurations.
-
+    This function returns sampled datasets from the pre-defined configurations.
     """
     #Read datasets (the try excpet is because: some of the data are not splitted into train/test (?), so this is a work around)
     try:
@@ -21,30 +23,81 @@ def datasets_sampler(dataset_path, percentage, random_state=42):
     num_samples = int(len(dataset)*percentage)
     dataset = dataset.shuffle(seed=random_state).select(range(num_samples))
 
-    #estimate the number of batches
-    num_batches = len(dataset) // batch_size
+    #return the sampled dataset
+    return dataset
 
-    #iterate through texts of sampled datasets
-    for d in dataset:
-        try:
-            yield d['text']
-        except KeyError:
-            yield d['article']
 
 
 def generator_all(config):
     """
-    This function behaves as a generator to stream text from data loaders for training.
-
-    The text is produced in a sequential manner.
+    This function behaves as a generator to stream text from the sampled data loaders for training.
+    The text is produced in a randomaized manner.
     """
-    #load all pile data loaders
-    all_dataloaders = [datasets_sampler(dataset_path, percentage) for dataset_path, percentage in config.items()]
+    #define a word counter
+    word_count = 0
+    
+    #define threshold word count 3.27 billion token (or words)
+    threshold_word_count = 3e9 + 2e8 + 7e7
+    
+    #load all the sampled data loaders
+    all_dataloaders = [iter(datasets_sampler(dataset_path, percentage)) for dataset_path, percentage in config.items()]
+    
+    #log the number of used words per datasets in total_num_words_per_dataset
+    total_num_words_per_dataset = {dataset_path: 0 for dataset_path in config.keys()}
+    
+    #use the indices of the dataloaders for random reading
+    dataloader_indicies = list(range(len(all_dataloaders)))
+    #start streaming text until the threshold_word_count is reached
+    while word_count <= threshold_word_count:
+        #before starting iterating throug the datasets, make sure you have your datasets not fully consumed, otherwise end the iteration 
+        if len(all_dataloaders) == 0:
+            break 
+        #if we have datasets to iterate through, do the followings: 
+        #in each iteration, select a random dataset to stream from 
+        try: 
+            random_idx = random.choice(dataloader_indicies)
+        except IndexError:
+            print("All Datasets are successfully consumed")
+            break 
+        
+        #we try stream text from the randomly selected dataset, and if the dataset is fully consumed, it is removed from the dataset lists.
+        #The iteration ends when all datasets are removed. 
+        try:     
+            #stream from the datasets, considering that texts could exist under different column name (work around)
+            if 'text' in next(all_dataloaders[random_idx]).keys():
+                text = next(all_dataloaders[random_idx])['text']
+                
+            elif 'article' in next(all_dataloaders[random_idx]).keys():
+                text = next(all_dataloaders[random_idx])['article']
+            
+            elif 'content' in next(all_dataloaders[random_idx]).keys():
+                text = next(all_dataloaders[random_idx])['content'] 
+                
+            #update word_count and total_num_words_per_dataset by the meassured word count from the streamed text in this iteration
+            measured_word_count = len(word_pattern.findall(text))
+            word_count += measured_word_count
+            total_num_words_per_dataset[list(config.keys())[random_idx]] += measured_word_count 
+        except: 
+            try: 
+                print(f"this dataset {list(config.keys())[random_idx]} is fully consumed")
+                dataloader_indicies.remove(random_idx)
+                continue
+            #if no index to be removed, it means that all datasets are consumed 
+            except IndexError:
+                break  
+        
+        #update logging the word count after 10000 iteration 
+        if word_count%10000 == 0:
+            print(f"total used number of words: {word_count}")
+            print(f"distribution of words per datasets: {total_num_words_per_dataset}")
+            
+        #stream text
+        yield text 
+        
+    #when streaming is over, save the total_num_words_per_dataset as json    
+    with open('total_num_words_per_dataset.json','w') as j: 
+        json.dump(total_num_words_per_dataset,j)
 
-    #stream text
-    for each_dataloader in all_dataloaders:
-        for each_text in each_dataloader:
-            yield each_text
 
 
 if __name__ == "__main__":
@@ -54,9 +107,13 @@ if __name__ == "__main__":
 
     with open(args.input_conf,'r') as j:
         configs = json.load(j)
-
+        
     for d in generator_all(configs):
         print("Next item: \n\n\n\n")
         print(d)
+        # break
+
+        
+        
 
     print("Done")
